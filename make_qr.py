@@ -17,9 +17,9 @@ import sys
 import qrcode
 from PIL import Image, ImageDraw, ImageFilter
 
-BG = (255, 241, 247)
-PINK_TOP = (244, 120, 170)     # gradient across the heart
-PINK_BOTTOM = (214, 58, 124)
+BG = (253, 236, 244)
+PINK_TOP = (226, 64, 138)     # gradient across the heart
+PINK_BOTTOM = (226, 64, 138)
 
 
 def mix(a, b, t):
@@ -76,14 +76,13 @@ def make(url, out="qr_heart.png", cell=26, gap=2.2, seed=1114):
         if kind == "qr":
             d.rectangle([X, Y, X + cell - 1, Y + cell - 1], fill=c)   # solid, touching: easy to scan
         else:
-            g = cell * .1
-            d.rounded_rectangle([X + g, Y + g, X + cell - g, Y + cell - g], radius=cell * .28, fill=c)
+            d.rectangle([X, Y, X + cell - 1, Y + cell - 1], fill=c)   # same square style as the QR
     for fx, fy in finders:
         X, Y = xy(fx, fy)
         c = colour(fx + 3, fy + 3)
-        d.rounded_rectangle([X, Y, X + 7 * cell - 1, Y + 7 * cell - 1], radius=cell * .9, fill=c)
-        d.rounded_rectangle([X + cell, Y + cell, X + 6 * cell - 1, Y + 6 * cell - 1], radius=cell * .6, fill=BG + (255,))
-        d.rounded_rectangle([X + 2 * cell, Y + 2 * cell, X + 5 * cell - 1, Y + 5 * cell - 1], radius=cell * .6, fill=c)
+        d.rounded_rectangle([X, Y, X + 7 * cell - 1, Y + 7 * cell - 1], radius=cell * .25, fill=c)
+        d.rounded_rectangle([X + cell, Y + cell, X + 6 * cell - 1, Y + 6 * cell - 1], radius=cell * .15, fill=BG + (255,))
+        d.rounded_rectangle([X + 2 * cell, Y + 2 * cell, X + 5 * cell - 1, Y + 5 * cell - 1], radius=cell * .15, fill=c)
 
     heart = canvas.rotate(-45, resample=Image.BICUBIC, expand=True)   # lobes up, QR corner (n, n) points down
     heart = heart.crop(heart.getbbox())
@@ -91,10 +90,6 @@ def make(url, out="qr_heart.png", cell=26, gap=2.2, seed=1114):
     # ---- soft card with a glow behind the heart ----
     W = H = int(max(heart.size) * 1.22)
     img = Image.new("RGB", (W, H), BG)
-    mask = Image.new("L", (W, H), 0)
-    ImageDraw.Draw(mask).ellipse([W * .14, H * .12, W * .86, H * .84], fill=170)
-    mask = mask.filter(ImageFilter.GaussianBlur(W * .07))
-    img.paste(Image.new("RGB", (W, H), (255, 214, 230)), (0, 0), mask)
     img.paste(heart, ((W - heart.size[0]) // 2, (H - heart.size[1]) // 2 + int(H * .01)), heart)
     img.save(out)
     return out
