@@ -22,7 +22,7 @@ async function load() {
   const name = c.name || "Birthday Girl";
   const age = c.age || 22;
   const sfx = age % 100 >= 11 && age % 100 <= 13 ? "th" : ({ 1: "st", 2: "nd", 3: "rd" }[age % 10] || "th");
-  document.title = `Happy ${age}${sfx} Birthday, ${name}!`;
+  document.title = "Happy Birthday";
 
   if (c.gate_title) {
     const [small, ...rest] = c.gate_title.split("\n");
