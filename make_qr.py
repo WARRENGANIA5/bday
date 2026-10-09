@@ -4,108 +4,98 @@ Make a pink heart-shaped QR code that opens the birthday website.
     python make_qr.py https://your-site.vercel.app
 
 Writes  qr_heart.png  (needs:  pip install qrcode pillow)
-The real QR sits in the middle of the heart with a clean border around it;
-the rest of the heart is decorative dots, so phones still scan it easily.
+
+Like the TikTok style: the QR itself is turned 45 degrees so it becomes the
+bottom point of the heart, and two round "lobes" of decorative dots on its
+upper edges finish the heart shape. A small clean gap keeps it scannable.
 """
 
+import math
 import random
 import sys
 
 import qrcode
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFilter
 
-PINK = (232, 79, 140)
-BG = (255, 240, 246)
-
-
-def in_heart(x, y):
-    # classic heart curve, x/y roughly in [-1.3, 1.3]
-    return (x * x + y * y - 1) ** 3 - x * x * y ** 3 <= 0
+BG = (255, 241, 247)
+PINK_TOP = (244, 120, 170)     # gradient across the heart
+PINK_BOTTOM = (214, 58, 124)
 
 
-def make(url, out="qr_heart.png", cell=24, title="Happy birthday!! 🎂", note="Open when alone"):
+def mix(a, b, t):
+    return tuple(round(a[i] + (b[i] - a[i]) * t) for i in range(3))
+
+
+def make(url, out="qr_heart.png", cell=26, gap=2.2, seed=1114):
     qr = qrcode.QRCode(error_correction=qrcode.constants.ERROR_CORRECT_H, border=0)
     qr.add_data(url)
     qr.make(fit=True)
     m = qr.get_matrix()
     n = len(m)
+    rnd = random.Random(seed)
 
-    quiet = 2                             # clean border around the real QR
-    rnd = random.Random(1114)
-
-    def heart_mask(grid):
-        mask = [[False] * grid for _ in range(grid)]
-        for gy in range(grid):
-            for gx in range(grid):
-                hx = (gx + .5 - grid / 2) / (grid / 2) * 1.2
-                hy = -((gy + .5 - grid * .42) / (grid / 2) * 1.2)
-                mask[gy][gx] = in_heart(hx, hy)
-        return mask
-
-    # grow the heart until the whole QR (plus its clean border) fits inside it
-    side = n + 2 * quiet
-    grid = n + 8
-    while True:
-        mask = heart_mask(grid)
-        ox = (grid - n) // 2
-        fits = [oy for oy in range(quiet, grid - n - quiet)
-                if all(mask[y][x] for y in range(oy - quiet, oy - quiet + side) for x in range(ox - quiet, ox - quiet + side))]
-        if fits:
-            oy = fits[len(fits) // 2]
-            break
-        grid += 2
-
-    filled = [[False] * grid for _ in range(grid)]
-    for gy in range(grid):
-        for gx in range(grid):
-            if not mask[gy][gx]:
+    # ---- module grid (u = column, v = row), with room for the two lobes ----
+    r = n / 2 + 0.6                     # lobe radius
+    lo = -math.ceil(r + 1)              # lobes stick out on the u<0 and v<0 sides
+    hi = n
+    cells = {}                          # (u, v) -> "qr" | "deco"
+    for v in range(lo, hi):
+        for u in range(lo, hi):
+            if 0 <= u < n and 0 <= v < n:
+                if m[v][u]:
+                    cells[(u, v)] = "qr"
                 continue
-            qx, qy = gx - ox, gy - oy
-            if -quiet <= qx < n + quiet and -quiet <= qy < n + quiet:
-                filled[gy][gx] = 0 <= qx < n and 0 <= qy < n and m[qy][qx]
-            else:
-                filled[gy][gx] = rnd.random() < .5
-    # trim empty rows at the top/bottom of the heart
-    rows = [y for y in range(grid) if any(mask[y])]
-    y0, y1 = rows[0], rows[-1] + 1
+            cx, cy = u + .5, v + .5
+            # lobe on the v<0 edge (centre at middle of the top edge) and on the u<0 edge
+            in_lobe = (cy < -gap and (cx - n / 2) ** 2 + cy ** 2 <= r * r) or \
+                      (cx < -gap and cx ** 2 + (cy - n / 2) ** 2 <= r * r)
+            if in_lobe and rnd.random() < .55:
+                cells[(u, v)] = "deco"
 
-    pad = cell * 3
-    top = 140
-    W = grid * cell + pad * 2
-    H = (y1 - y0) * cell + pad * 2 + top + 90
-    img = Image.new("RGB", (W, H), BG)
-    d = ImageDraw.Draw(img)
-
-    def finder(x, y):
-        # rounded finder pattern so the corners look cute but still scan
-        X, Y = pad + x * cell, top + pad + (y - y0) * cell
-        d.rounded_rectangle([X, Y, X + 7 * cell - 1, Y + 7 * cell - 1], radius=cell * .6, fill=PINK)
-        d.rounded_rectangle([X + cell, Y + cell, X + 6 * cell - 1, Y + 6 * cell - 1], radius=cell * .4, fill=BG)
-        d.rounded_rectangle([X + 2 * cell, Y + 2 * cell, X + 5 * cell - 1, Y + 5 * cell - 1], radius=cell * .4, fill=PINK)
-
+    # ---- draw unrotated, then turn 45 degrees so the QR becomes the heart's point ----
+    size = (hi - lo) * cell
+    pad = cell * 4
+    canvas = Image.new("RGBA", (size + pad * 2, size + pad * 2), (0, 0, 0, 0))
+    d = ImageDraw.Draw(canvas)
     finders = [(0, 0), (n - 7, 0), (0, n - 7)]
-    skip = {(ox + fx + i, oy + fy + j) for fx, fy in finders for i in range(7) for j in range(7)}
-    for gy in range(grid):
-        for gx in range(grid):
-            if filled[gy][gx] and (gx, gy) not in skip:
-                X, Y = pad + gx * cell, top + pad + (gy - y0) * cell
-                if 0 <= gx - ox < n and 0 <= gy - oy < n:
-                    # real QR modules: solid squares that touch, so every scanner reads them
-                    d.rectangle([X, Y, X + cell - 1, Y + cell - 1], fill=PINK)
-                else:
-                    # decoration around it: little rounded dots
-                    g = cell * .08
-                    d.rounded_rectangle([X + g, Y + g, X + cell - g, Y + cell - g], radius=cell * .3, fill=PINK)
-    for fx, fy in finders:
-        finder(ox + fx, oy + fy)
+    in_finder = lambda u, v: any(fx <= u < fx + 7 and fy <= v < fy + 7 for fx, fy in finders)
 
-    try:
-        f1 = ImageFont.truetype("seguiemj.ttf", 64)
-        f2 = ImageFont.truetype("segoeui.ttf", 46)
-    except OSError:
-        f1 = f2 = ImageFont.load_default()
-    d.text((W / 2, 70), title, font=f1, fill=(90, 40, 70), anchor="mm", embedded_color=True)
-    d.text((W / 2, H - 70), note, font=f2, fill=(150, 70, 110), anchor="mm")
+    def xy(u, v):
+        return pad + (u - lo) * cell, pad + (v - lo) * cell
+
+    def colour(u, v):
+        # top of the heart lighter, the point deeper
+        t = (u + v - 2 * lo) / (2 * (hi - lo))
+        return mix(PINK_TOP, PINK_BOTTOM, max(0, min(1, t))) + (255,)
+
+    for (u, v), kind in cells.items():
+        if kind == "qr" and in_finder(u, v):
+            continue
+        X, Y = xy(u, v)
+        c = colour(u, v)
+        if kind == "qr":
+            d.rectangle([X, Y, X + cell - 1, Y + cell - 1], fill=c)   # solid, touching: easy to scan
+        else:
+            g = cell * .1
+            d.rounded_rectangle([X + g, Y + g, X + cell - g, Y + cell - g], radius=cell * .28, fill=c)
+    for fx, fy in finders:
+        X, Y = xy(fx, fy)
+        c = colour(fx + 3, fy + 3)
+        d.rounded_rectangle([X, Y, X + 7 * cell - 1, Y + 7 * cell - 1], radius=cell * .9, fill=c)
+        d.rounded_rectangle([X + cell, Y + cell, X + 6 * cell - 1, Y + 6 * cell - 1], radius=cell * .6, fill=BG + (255,))
+        d.rounded_rectangle([X + 2 * cell, Y + 2 * cell, X + 5 * cell - 1, Y + 5 * cell - 1], radius=cell * .6, fill=c)
+
+    heart = canvas.rotate(-45, resample=Image.BICUBIC, expand=True)   # lobes up, QR corner (n, n) points down
+    heart = heart.crop(heart.getbbox())
+
+    # ---- soft card with a glow behind the heart ----
+    W = H = int(max(heart.size) * 1.22)
+    img = Image.new("RGB", (W, H), BG)
+    mask = Image.new("L", (W, H), 0)
+    ImageDraw.Draw(mask).ellipse([W * .14, H * .12, W * .86, H * .84], fill=170)
+    mask = mask.filter(ImageFilter.GaussianBlur(W * .07))
+    img.paste(Image.new("RGB", (W, H), (255, 214, 230)), (0, 0), mask)
+    img.paste(heart, ((W - heart.size[0]) // 2, (H - heart.size[1]) // 2 + int(H * .01)), heart)
     img.save(out)
     return out
 

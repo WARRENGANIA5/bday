@@ -2594,3 +2594,13 @@ body.music-on .mc-viz i { opacity: 1; animation: vizBar .9s ease-in-out infinite
 
 .bfly.gift-fly { width: 54px; height: 50px; offset-path: path("M 0 -78 C 120 -88 130 10 100 60 C 70 115 -70 115 -100 60 C -130 10 -120 -88 0 -78"); }
 .bfly.gift-fly.g2 { width: 42px; height: 39px; }
+
+/* ================= Responsive: same layout on every phone =================
+   The page is designed for a 430px-wide column. On narrower phones the whole
+   column (and the opening screen) is scaled down as one piece, so nothing
+   shifts or overlaps; on wider screens the column stays centred. */
+.wrap { width: 430px; max-width: none; zoom: var(--fit, 1); }
+#gate > * { zoom: var(--fit, 1); }
+.surprise .bm-stage, #bouquetModal .bm-stage { zoom: var(--fit, 1); }
+footer.ft > * { zoom: var(--fit, 1); }
+html, body { overflow-x: hidden; }

@@ -1,3 +1,12 @@
+// scale the 430px design to fit narrow phones exactly
+function fitLayout() {
+  const fit = Math.min(1, document.documentElement.clientWidth / 430);
+  document.documentElement.style.setProperty("--fit", fit.toFixed(4));
+}
+fitLayout();
+addEventListener("resize", fitLayout);
+addEventListener("orientationchange", fitLayout);
+
 const $ = (s) => document.querySelector(s);
 let data = { config: {}, photos: [], music: [], wishes: [] };
 
